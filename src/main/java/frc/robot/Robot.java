@@ -4,6 +4,7 @@
 
 package frc.robot;
 
+import edu.wpi.first.units.Time;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -11,6 +12,10 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import java.io.File;
 import java.io.IOException;
+
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkLowLevel.MotorType;
+
 import swervelib.parser.SwerveParser;
 
 /**
@@ -24,9 +29,24 @@ public class Robot extends TimedRobot
   private static Robot   instance;
   private        Command m_autonomousCommand;
 
-  private RobotContainer m_robotContainer;
+  RobotContainer m_robotContainer;
+
+  private final CANSparkMax intakeMotor1 = new CANSparkMax(11, MotorType.kBrushless);
+  private final CANSparkMax intakeMotor2 = new CANSparkMax(12, MotorType.kBrushless);
+
+  private final CANSparkMax climberMotorL = new CANSparkMax(12, MotorType.kBrushless);
+  private final CANSparkMax climberMotorR = new CANSparkMax(12, MotorType.kBrushless);
+
+  private final CANSparkMax ampIntake = new CANSparkMax(12, MotorType.kBrushless);
 
   private Timer disabledTimer;
+
+  public final float intakeSpeed = 0.2f;
+  public final float launchSpeed = 1f;
+  public final float launchPrimeTime = 0.4f;
+
+  public final double climbSpeed = 0.5;
+  public final double climbDownSpeed = -0.2;
 
   public Robot()
   {
@@ -44,6 +64,10 @@ public class Robot extends TimedRobot
   @Override
   public void robotInit()
   {
+    intakeMotor1.setSmartCurrentLimit(90, 40, 6001);
+    intakeMotor2.setSmartCurrentLimit(90, 40, 6001);
+
+    ampIntake.setIdleMode(CANSparkMax.IdleMode.kBrake);
     // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
     // autonomous chooser on the dashboard.
     m_robotContainer = new RobotContainer();
@@ -53,20 +77,56 @@ public class Robot extends TimedRobot
     disabledTimer = new Timer();
   }
 
-  /**
-   * This function is called every 20 ms, no matter the mode. Use this for items like diagnostics that you want ran
-   * during disabled, autonomous, teleoperated and test.
-   *
-   * <p>This runs after the mode specific periodic functions, but before LiveWindow and
-   * SmartDashboard integrated updating.
-   */
+  public void setMotorBrake(boolean brake)
+  {
+    //intakeMotor1.setIdleMode(brake ? CANSparkMax.IdleMode.kBrake : CANSparkMax.IdleMode.kCoast);
+    //intakeMotor2.setIdleMode(brake ? CANSparkMax.IdleMode.kBrake : CANSparkMax.IdleMode.kCoast);
+
+    intakeMotor1.set(0);
+    intakeMotor2.set(0);
+  }
+
+  private void setClimberMotors(double speed)
+  {
+    climberMotorL.set(speed);
+    climberMotorR.set(speed);
+  }
+
+  private void intakeNote(){
+    intakeMotor1.set(-intakeSpeed);
+    intakeMotor2.set(-intakeSpeed);
+
+    ampIntake.set(-0.3);
+  }
+
+  public boolean isPrimed;
+  public double primeTimestamp;
+  public void primeLauncher()
+  {
+    intakeMotor2.set(launchSpeed);
+    if (primeTimestamp < Timer.getFPGATimestamp())
+    {
+      primeTimestamp = Timer.getFPGATimestamp() + launchPrimeTime;
+      isPrimed = true;
+    }
+    else{
+      isPrimed = false;
+    }
+  }
+
+  private void launchNote()
+  {
+    ampIntake.set(0.3);
+    if (!isPrimed)
+      primeLauncher();
+    else
+      intakeMotor1.set(launchSpeed);
+  }
+
+
   @Override
   public void robotPeriodic()
   {
-    // Runs the Scheduler.  This is responsible for polling buttons, adding newly-scheduled
-    // commands, running already-scheduled commands, removing finished or interrupted commands,
-    // and running subsystem periodic() methods.  This must be called from the robot's periodic
-    // block in order for anything in the Command-based framework to work.
     CommandScheduler.getInstance().run();
   }
 
@@ -79,6 +139,9 @@ public class Robot extends TimedRobot
     m_robotContainer.setMotorBrake(true);
     disabledTimer.reset();
     disabledTimer.start();
+
+    climberMotorL.setIdleMode(CANSparkMax.IdleMode.kCoast);
+    climberMotorR.setIdleMode(CANSparkMax.IdleMode.kCoast);
   }
 
   @Override
@@ -118,24 +181,51 @@ public class Robot extends TimedRobot
   @Override
   public void teleopInit()
   {
-    // This makes sure that the autonomous stops running when
-    // teleop starts running. If you want the autonomous to
-    // continue until interrupted by another command, remove
-    // this line or comment it out.
+    climberMotorL.setIdleMode(CANSparkMax.IdleMode.kBrake);
+    climberMotorR.setIdleMode(CANSparkMax.IdleMode.kBrake);
     if (m_autonomousCommand != null)
     {
       m_autonomousCommand.cancel();
     }
     m_robotContainer.setDriveMode();
     m_robotContainer.setMotorBrake(true);
+
+    
   }
 
-  /**
-   * This function is called periodically during operator control.
-   */
+  private boolean isClimberUp = false;
+  private void toggleClimber()
+  {
+    if (isClimberUp)
+    {
+      setClimberMotors(climbDownSpeed);
+    }
+    else
+    {
+      setClimberMotors(climbSpeed);
+    }
+    isClimberUp = !isClimberUp;
+  }
+
+
   @Override
   public void teleopPeriodic()
   {
+
+    if (m_robotContainer.driverXbox.getLeftBumper())
+      intakeNote();
+    else if (m_robotContainer.driverXbox.getLeftTriggerAxis() > 0.6)
+      launchNote();
+    else
+      setMotorBrake(true);
+
+    if (m_robotContainer.driverXbox.getLeftBumper())
+      primeLauncher();
+
+    if(m_robotContainer.driverXbox.getBButton())
+      toggleClimber();
+
+
   }
 
   @Override
@@ -150,29 +240,5 @@ public class Robot extends TimedRobot
     {
       throw new RuntimeException(e);
     }
-  }
-
-  /**
-   * This function is called periodically during test mode.
-   */
-  @Override
-  public void testPeriodic()
-  {
-  }
-
-  /**
-   * This function is called once when the robot is first started up.
-   */
-  @Override
-  public void simulationInit()
-  {
-  }
-
-  /**
-   * This function is called periodically whilst in simulation.
-   */
-  @Override
-  public void simulationPeriodic()
-  {
   }
 }
