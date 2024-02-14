@@ -22,6 +22,7 @@ import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.swervedrive.drivebase.AbsoluteDrive;
 import frc.robot.commands.swervedrive.drivebase.AbsoluteDriveAdv;
 import frc.robot.commands.swervedrive.drivebase.AbsoluteFieldDrive;
+import frc.robot.commands.swervedrive.drivebase.TeleopDrive;
 import frc.robot.subsystems.swervedrive.SwerveSubsystem;
 import java.io.File;
 
@@ -51,44 +52,12 @@ public class RobotContainer
     // Configure the trigger bindings
     configureBindings();
 
+    TeleopDrive closedFieldRel = new TeleopDrive(drivebase, 
+    () -> (Math.abs(driverXbox.getLeftY()* -1) > OperatorConstants.LEFT_Y_DEADBAND)  ? driverXbox.getLeftY() * -1 : 0, 
+    () -> (Math.abs(driverXbox.getLeftX()* -1) > OperatorConstants.LEFT_X_DEADBAND) ? driverXbox.getLeftX()* -1 : 0, 
+    () -> -driverXbox.getRightX(), () -> true, false);
 
-    // Applies deadbands and inverts controls because joysticks
-    // are back-right positive while robot
-    // controls are front-left positive
-    // left stick controls translation
-    // right stick controls the desired angle NOT angular rotation
-    AbsoluteDriveAdv closedAbsoluteDriveAdv = new AbsoluteDriveAdv(drivebase,
-                                                                   () -> MathUtil.applyDeadband(driverXbox.getLeftY(),
-                                                                                                OperatorConstants.LEFT_Y_DEADBAND),
-                                                                   () -> MathUtil.applyDeadband(driverXbox.getLeftX() ,
-                                                                                                OperatorConstants.LEFT_X_DEADBAND),
-                                                                   () -> MathUtil.applyDeadband(driverXbox.getRightX(),
-                                                                                                OperatorConstants.RIGHT_X_DEADBAND) * 5,
-                                                                   null,
-                                                                   null,
-                                                                   null,
-                                                                   null);
-
-    Command driveFieldOrientedDirectAngle = drivebase.driveCommand(
-        () -> MathUtil.applyDeadband(driverXbox.getLeftY() * -1, OperatorConstants.LEFT_Y_DEADBAND),
-        () -> MathUtil.applyDeadband(driverXbox.getLeftX() * -1, OperatorConstants.LEFT_X_DEADBAND),
-        () -> driverXbox.getRightX(),
-        () -> driverXbox.getRightY());
-
-
-    // Applies deadbands and inverts controls because joysticks
-    // are back-right positive while robot
-    // controls are front-left positive
-    // left stick controls translation
-    // right stick controls the angular velocity of the robot
-
-    Command driveFieldOrientedDirectAngleSim = drivebase.simDriveCommand(
-        () -> MathUtil.applyDeadband(driverXbox.getLeftY() * -1, OperatorConstants.LEFT_Y_DEADBAND),
-        () -> MathUtil.applyDeadband(driverXbox.getLeftX() * -1, OperatorConstants.LEFT_X_DEADBAND),
-        () -> driverXbox.getRawAxis(2));
-
-    //drivebase.setDefaultCommand(closedAbsoluteDriveAdv);
-    drivebase.setDefaultCommand(driveFieldOrientedDirectAngle);
+    drivebase.setDefaultCommand(closedFieldRel);
   }
 
   /**

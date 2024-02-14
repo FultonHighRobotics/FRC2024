@@ -34,10 +34,10 @@ public class Robot extends TimedRobot
   private final CANSparkMax intakeMotor1 = new CANSparkMax(11, MotorType.kBrushless);
   private final CANSparkMax intakeMotor2 = new CANSparkMax(12, MotorType.kBrushless);
 
-  private final CANSparkMax climberMotorL = new CANSparkMax(12, MotorType.kBrushless);
-  private final CANSparkMax climberMotorR = new CANSparkMax(12, MotorType.kBrushless);
+  private final CANSparkMax climberMotorL = new CANSparkMax(10, MotorType.kBrushless);
+  private final CANSparkMax climberMotorR = new CANSparkMax(9, MotorType.kBrushless);
 
-  private final CANSparkMax ampIntake = new CANSparkMax(12, MotorType.kBrushless);
+  private final CANSparkMax ampIntake = new CANSparkMax(13, MotorType.kBrushless);
 
   private Timer disabledTimer;
 
@@ -84,11 +84,13 @@ public class Robot extends TimedRobot
 
     intakeMotor1.set(0);
     intakeMotor2.set(0);
+    ampIntake.set(0);
+    isPrimed = false;
   }
 
   private void setClimberMotors(double speed)
   {
-    climberMotorL.set(speed);
+    climberMotorL.set(-speed);
     climberMotorR.set(speed);
   }
 
@@ -96,31 +98,24 @@ public class Robot extends TimedRobot
     intakeMotor1.set(-intakeSpeed);
     intakeMotor2.set(-intakeSpeed);
 
-    ampIntake.set(-0.3);
+    ampIntake.set(0.3);
   }
 
   public boolean isPrimed;
   public double primeTimestamp;
   public void primeLauncher()
   {
-    intakeMotor2.set(launchSpeed);
-    if (primeTimestamp < Timer.getFPGATimestamp())
-    {
-      primeTimestamp = Timer.getFPGATimestamp() + launchPrimeTime;
-      isPrimed = true;
-    }
-    else{
-      isPrimed = false;
-    }
+    intakeMotor1.set(launchSpeed);
+    // launches it when primed
+
   }
 
   private void launchNote()
   {
-    ampIntake.set(0.3);
-    if (!isPrimed)
-      primeLauncher();
-    else
-      intakeMotor1.set(launchSpeed);
+    ampIntake.set(-1);
+    intakeMotor1.set(launchSpeed);
+    intakeMotor2.set(launchSpeed);
+      
   }
 
 
@@ -183,6 +178,9 @@ public class Robot extends TimedRobot
   {
     climberMotorL.setIdleMode(CANSparkMax.IdleMode.kBrake);
     climberMotorR.setIdleMode(CANSparkMax.IdleMode.kBrake);
+
+    climberMotorL.setSmartCurrentLimit(45);
+    climberMotorR.setSmartCurrentLimit(45);
     if (m_autonomousCommand != null)
     {
       m_autonomousCommand.cancel();
@@ -191,6 +189,20 @@ public class Robot extends TimedRobot
     m_robotContainer.setMotorBrake(true);
 
     
+  }
+
+  private void smartLaunch()
+  {
+    if (!isPrimed)
+    {
+      primeLauncher();
+      primeTimestamp = Timer.getFPGATimestamp();
+      isPrimed = true;
+    }
+    else if (Timer.getFPGATimestamp() - primeTimestamp > launchPrimeTime)
+    {
+      launchNote();
+    }
   }
 
   private boolean isClimberUp = false;
@@ -207,25 +219,47 @@ public class Robot extends TimedRobot
     isClimberUp = !isClimberUp;
   }
 
+  boolean alter = false;
+  public void handleInputs(){
+    double leftTrigger = m_robotContainer.driverXbox.getLeftTriggerAxis(), 
+    rightTrigger = m_robotContainer.driverXbox.getRightTriggerAxis();
+
+
+    if (m_robotContainer.driverXbox.getLeftBumper())
+    {
+        intakeNote();
+    }
+    else if (leftTrigger > 0.15){
+      if (alter)
+          setClimberMotors(leftTrigger);
+      else
+        primeLauncher();
+    }
+    else if (rightTrigger > 0.15){
+        if (alter){
+          setClimberMotors(rightTrigger);
+        }
+        else{
+          launchNote();
+        }
+    }
+    else{
+      setClimberMotors(0);
+      setMotorBrake(true);
+    }
+      
+
+    if (m_robotContainer.driverXbox.getBackButtonPressed())
+    {
+      alter = !alter;
+    }
+  }
+
 
   @Override
   public void teleopPeriodic()
   {
-
-    if (m_robotContainer.driverXbox.getLeftBumper())
-      intakeNote();
-    else if (m_robotContainer.driverXbox.getLeftTriggerAxis() > 0.6)
-      launchNote();
-    else
-      setMotorBrake(true);
-
-    if (m_robotContainer.driverXbox.getLeftBumper())
-      primeLauncher();
-
-    if(m_robotContainer.driverXbox.getBButton())
-      toggleClimber();
-
-
+    handleInputs();
   }
 
   @Override

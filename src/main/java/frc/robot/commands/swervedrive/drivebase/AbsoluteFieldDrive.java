@@ -63,7 +63,7 @@ public class AbsoluteFieldDrive extends Command
     // Get the desired chassis speeds based on a 2 joystick module.
 
     ChassisSpeeds desiredSpeeds = swerve.getTargetSpeeds(vX.getAsDouble(), vY.getAsDouble(),
-                                                         new Rotation2d(heading.getAsDouble() * Math.PI));
+                                                         new Rotation2d(heading.getAsDouble()));
 
     // Limit velocity to prevent tippy
     Translation2d translation = SwerveController.getTranslation2d(desiredSpeeds);
