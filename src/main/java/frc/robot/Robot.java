@@ -82,9 +82,8 @@ public class Robot extends TimedRobot
     //intakeMotor1.setIdleMode(brake ? CANSparkMax.IdleMode.kBrake : CANSparkMax.IdleMode.kCoast);
     //intakeMotor2.setIdleMode(brake ? CANSparkMax.IdleMode.kBrake : CANSparkMax.IdleMode.kCoast);
 
-    intakeMotor1.set(0);
-    intakeMotor2.set(0);
-    ampIntake.set(0);
+
+    
     isPrimed = false;
   }
 
@@ -191,63 +190,51 @@ public class Robot extends TimedRobot
     
   }
 
-  private void smartLaunch()
-  {
-    if (!isPrimed)
-    {
-      primeLauncher();
-      primeTimestamp = Timer.getFPGATimestamp();
-      isPrimed = true;
-    }
-    else if (Timer.getFPGATimestamp() - primeTimestamp > launchPrimeTime)
-    {
-      launchNote();
-    }
-  }
-
-  private boolean isClimberUp = false;
-  private void toggleClimber()
-  {
-    if (isClimberUp)
-    {
-      setClimberMotors(climbDownSpeed);
-    }
-    else
-    {
-      setClimberMotors(climbSpeed);
-    }
-    isClimberUp = !isClimberUp;
-  }
+  float launchCountdown = 0;
 
   boolean alter = false;
   public void handleInputs(){
     double leftTrigger = m_robotContainer.driverXbox.getLeftTriggerAxis(), 
     rightTrigger = m_robotContainer.driverXbox.getRightTriggerAxis();
-
-
+    
+    
     if (m_robotContainer.driverXbox.getLeftBumper())
     {
-        intakeNote();
+      intakeNote();
     }
-    else if (leftTrigger > 0.15){
-      if (alter)
-          setClimberMotors(leftTrigger);
-      else
-        primeLauncher();
+    else{
+      intakeMotor1.set(0);
+      intakeMotor2.set(0);
+      ampIntake.set(0);
     }
-    else if (rightTrigger > 0.15){
-        if (alter){
-          setClimberMotors(rightTrigger);
-        }
-        else{
-          launchNote();
-        }
+
+    if (leftTrigger > 0.15){
+      // primes the launcher while the trigger is held, then launches when released
+      launchCountdown = 1f;
+      primeLauncher();
+    }
+    else if (launchCountdown > 0){
+      launchCountdown -= 0.05;
+      launchNote();
+    }
+    
+    if (rightTrigger > 0.1){
+      m_robotContainer.swerveSpeed = 0.73f;
+    }
+    else{
+      m_robotContainer.swerveSpeed = 1.3f;
+    }
+
+    if (m_robotContainer.driverXbox.getLeftStickButton()){
+      setClimberMotors(0.4);
+    }
+
+    else if (m_robotContainer.driverXbox.getRightStickButton()){
+      setClimberMotors(-0.4);
     }
     else{
       setClimberMotors(0);
-      setMotorBrake(true);
     }
-      
 
     if (m_robotContainer.driverXbox.getBackButtonPressed())
     {
