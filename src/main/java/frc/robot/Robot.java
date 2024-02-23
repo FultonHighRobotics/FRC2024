@@ -4,6 +4,9 @@
 
 package frc.robot;
 
+import edu.wpi.first.apriltag.AprilTagFieldLayout;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.units.Time;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -12,6 +15,10 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import java.io.File;
 import java.io.IOException;
+import java.util.Optional;
+
+import org.photonvision.EstimatedRobotPose;
+import org.photonvision.PhotonPoseEstimator;
 
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkLowLevel.MotorType;
@@ -242,11 +249,40 @@ public class Robot extends TimedRobot
     }
   }
 
+  AprilTagFieldLayout aprilTagFieldLayout = null;
+  
+  PhotonPoseEstimator photonPoseEstimator;
+
+  public Optional<EstimatedRobotPose> getEstimatedGlobalPose(Pose2d prevEstimatedRobotPose) {
+    photonPoseEstimator.setReferencePose(prevEstimatedRobotPose);
+    return photonPoseEstimator.update();
+  }
 
   @Override
   public void teleopPeriodic()
   {
     handleInputs();
+
+    var vision = m_robotContainer.camera.getLatestResult();
+
+    if (vision.hasTargets()) {
+
+        var estimatedPose = getEstimatedGlobalPose(m_robotContainer.drivebase.getPose());
+
+
+      if(estimatedPose.isPresent()) {
+        Pose3d robotPose = estimatedPose.get().estimatedPose;
+        Pose2d robotPose2d = estimatedPose.get().estimatedPose.toPose2d();
+
+
+        m_robotContainer.drivebase.addRealVisionReading(robotPose2d, Timer.getFPGATimestamp());
+        m_robotContainer.drivebase.setGyroOffset(robotPose.getRotation());
+        m_robotContainer.drivebase.updateOdometry();
+      }
+
+        //var camToTargetX = camToTarget.getPose();
+
+    }
   }
 
   @Override
